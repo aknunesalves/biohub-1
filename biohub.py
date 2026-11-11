@@ -108,14 +108,55 @@ def print_exit_message():
     print("Obrigado por usar o BioHub! Essa aplicação foi feita com <3 e café...", file=sys.stderr)
     print("=" * 69, file=sys.stderr)
 
+# Número de erros reportados durante a execução; define o código de saída do processo.
+_error_count = 0
+
+def report_error(message: str):
+    """Exibe uma mensagem de erro em stderr e registra a falha para o código de saída (1)."""
+    global _error_count
+    _error_count += 1
+    print(message, file=sys.stderr)
+
+def iter_first_model(lines):
+    """
+    Percorre as linhas de um PDB parando no fim do primeiro modelo (ENDMDL).
+
+    Estruturas de RMN costumam trazer vários modelos (MODEL/ENDMDL) com os mesmos
+    átomos em conformações diferentes; lê-los juntos sobrepõe os átomos e distorce
+    SASA, contatos e hidrofobicidade. Arquivos sem MODEL são lidos por inteiro.
+    """
+    for line in lines:
+        if line.startswith("ENDMDL"):
+            print("Aviso: estrutura com múltiplos modelos (MODEL/ENDMDL); apenas o primeiro modelo será analisado.", file=sys.stderr)
+            return
+        yield line
+
+def is_alternate_location(line: str, chosen_altloc: dict) -> bool:
+    """
+    Indica se a linha ATOM/HETATM pertence a uma conformação alternativa (altLoc) descartada.
+
+    Quando um resíduo tem conformações alternativas (coluna 17 = A, B, ...), apenas a
+    primeira encontrada nesse resíduo é mantida, para que os mesmos átomos não sejam
+    contados duas vezes. Átomos sem altLoc são sempre mantidos.
+    """
+    altloc = line[16] if len(line) > 16 else ' '
+    if altloc == ' ':
+        return False
+    # Identidade do resíduo: cadeia, número do resíduo e código de inserção.
+    residue = (line[21], line[22:26], line[26])
+    return chosen_altloc.setdefault(residue, altloc) != altloc
+
 def parse_pdb_atoms(pdb_filepath: str):
     """Lê um arquivo PDB e extrai as coordenadas e informações de cada átomo."""
     atoms = []
+    chosen_altloc = {}
     try:
         with open(pdb_filepath, 'r') as f:
-            for line in f:
+            for line in iter_first_model(f):
                 # Linhas ATOM e HETATM contêm as informações dos átomos.
                 if line.startswith("ATOM") or line.startswith("HETATM"):
+                    if is_alternate_location(line, chosen_altloc):
+                        continue
                     # Extraio as informações de cada coluna, convertendo para o tipo correto.
                     atoms.append({
                         "atom_num": int(line[6:11]),  # Número serial do átomo
@@ -130,7 +171,7 @@ def parse_pdb_atoms(pdb_filepath: str):
                         "element": line[76:78].strip().upper() or line[12:14].strip().upper()
                     })
     except FileNotFoundError:
-        print(f"Erro: Arquivo não encontrado em '{pdb_filepath}'", file=sys.stderr)
+        report_error(f"Erro: Arquivo não encontrado em '{pdb_filepath}'")
     return atoms
 
 def get_sequence_from_pdb(pdb_filepath: str) -> str:
@@ -140,7 +181,7 @@ def get_sequence_from_pdb(pdb_filepath: str) -> str:
     first_chain_id = None # Vou pegar a sequência apenas da primeira cadeia que encontrar.
     try:
         with open(pdb_filepath, 'r') as pdb_file:
-            for line in pdb_file:
+            for line in iter_first_model(pdb_file):
                 if line.startswith("ATOM"):
                     current_chain_id = line[21]
                     # Define a primeira cadeia encontrada como a cadeia de referência.
@@ -156,7 +197,7 @@ def get_sequence_from_pdb(pdb_filepath: str) -> str:
                                 sequence += THREE_TO_ONE[res_name]
                                 processed_residues.add(res_id)
     except FileNotFoundError:
-        print(f"Erro: Arquivo não encontrado em '{pdb_filepath}'", file=sys.stderr)
+        report_error(f"Erro: Arquivo não encontrado em '{pdb_filepath}'")
     return sequence
 
 def extract_pdb_header_info(pdb_filepath: str):
@@ -192,7 +233,7 @@ def write_csv(filepath, header, data_rows):
             writer.writerows(data_rows) # Escreve todas as linhas de dados.
         print(f"Resultados salvos com sucesso em '{filepath}'", file=sys.stderr)
     except IOError as e:
-        print(f"Erro ao salvar o arquivo: {e}", file=sys.stderr)
+        report_error(f"Erro ao salvar o arquivo: {e}")
 
 def generate_sphere_points(n_points: int):
     """Gera pontos distribuídos uniformemente na superfície de uma esfera (algoritmo Fibonacci sphere)."""
@@ -266,19 +307,22 @@ def filter_pdb_content(pdb_filepath, chains=None, protein_only=False):
     
     return atoms_kept, atoms_removed
 
+# Tempo máximo de espera por resposta do RCSB, para que o download não trave indefinidamente.
+DOWNLOAD_TIMEOUT_SECONDS = 60
+
 def handle_fetch_pdb(args):
     """Baixa um arquivo PDB do banco de dados RCSB PDB."""
     pdb_id = args.pdb_id.upper()
     # Validação simples do ID do PDB.
     if len(pdb_id) != 4:
-        print(f"Erro: O ID do PDB '{pdb_id}' é inválido. Deve conter 4 caracteres.", file=sys.stderr)
+        report_error(f"Erro: O ID do PDB '{pdb_id}' é inválido. Deve conter 4 caracteres.")
         return
     url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
     output_file = args.output if args.output else f"{pdb_id}.pdb"
     try:
         print(f"Baixando {pdb_id} de {url}...", file=sys.stderr)
         # Faço o download e salvo o arquivo.
-        with urllib.request.urlopen(url) as response, open(output_file, 'wb') as out_file:
+        with urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response, open(output_file, 'wb') as out_file:
             data = response.read()
             if not data: raise ValueError("Arquivo PDB recebido está vazio.") # Checa se o download não falhou silenciosamente.
             out_file.write(data)
@@ -309,10 +353,10 @@ def handle_fetch_pdb(args):
             if info['organism']: print(f"  Organismo : {info['organism']}", file=sys.stderr)
 
     except urllib.error.HTTPError as e:
-        print(f"Erro ao baixar o arquivo: Não foi possível encontrar o PDB ID '{pdb_id}'. (HTTP {e.code})", file=sys.stderr)
+        report_error(f"Erro ao baixar o arquivo: Não foi possível encontrar o PDB ID '{pdb_id}'. (HTTP {e.code})")
         if os.path.exists(output_file): os.remove(output_file) # Limpa o arquivo vazio se o download falhar.
     except Exception as e:
-        print(f"Ocorreu um erro inesperado: {e}", file=sys.stderr)
+        report_error(f"Ocorreu um erro inesperado: {e}")
         if os.path.exists(output_file): os.remove(output_file)
 
 def handle_pdb_to_fasta(args):
@@ -344,13 +388,13 @@ def handle_csv_to_fasta(args):
                     if args.id_col in header_row: id_col_idx = header_row.index(args.id_col)
                     if args.seq_col in header_row: seq_col_idx = header_row.index(args.seq_col)
                 if id_col_idx == -1 or seq_col_idx == -1:
-                    print(f"Erro: Coluna de ID ('{args.id_col}') ou Sequência ('{args.seq_col}') não encontrada.", file=sys.stderr)
+                    report_error(f"Erro: Coluna de ID ('{args.id_col}') ou Sequência ('{args.seq_col}') não encontrada.")
                     return
             else: # Se não tem cabeçalho, as colunas devem ser fornecidas como índices numéricos.
                 try:
                     id_col_idx, seq_col_idx = int(args.id_col), int(args.seq_col)
                 except ValueError:
-                    print("Erro: Sem cabeçalho, as colunas devem ser índices numéricos.", file=sys.stderr)
+                    report_error("Erro: Sem cabeçalho, as colunas devem ser índices numéricos.")
                     return
             
             # Gero as strings FASTA para cada linha do CSV.
@@ -364,17 +408,22 @@ def handle_csv_to_fasta(args):
             else:
                 print(output_content)
     except FileNotFoundError:
-        print(f"Erro: Arquivo CSV não encontrado em '{args.csv_file}'", file=sys.stderr)
+        report_error(f"Erro: Arquivo CSV não encontrado em '{args.csv_file}'")
     except Exception as e:
-        print(f"Ocorreu um erro: {e}", file=sys.stderr)
+        report_error(f"Ocorreu um erro: {e}")
 
 def calculate_physicochemical_properties(args):
     """Calcula várias propriedades físico-químicas de uma sequência de proteína."""
     sequence = args.sequence.upper()
     if not sequence:
-        print("Erro: Sequência de entrada está vazia.", file=sys.stderr)
+        report_error("Erro: Sequência de entrada está vazia.")
         return
-    
+    invalid_residues = sorted(set(sequence) - set(MOLECULAR_WEIGHT))
+    if invalid_residues:
+        report_error(f"Erro: A sequência contém caracteres inválidos: {', '.join(invalid_residues)}. "
+                     "Use apenas os 20 aminoácidos padrão (código de 1 letra).")
+        return
+
     length = len(sequence)
     aa_composition = {aa: sequence.count(aa) for aa in MOLECULAR_WEIGHT.keys()}
     
@@ -460,13 +509,14 @@ def calculate_intramolecular_contacts(args):
     # Dicionário: resíduo -> lista de coordenadas de todos os átomos
     residue_atoms = {}
     if not os.path.exists(args.pdb_file):
-        print(f"Erro: Arquivo não encontrado em '{args.pdb_file}'", file=sys.stderr)
+        report_error(f"Erro: Arquivo não encontrado em '{args.pdb_file}'")
         return
     with open(args.pdb_file, 'r') as f:
         first_chain_id = None
-        for line in f:
+        chosen_altloc = {}
+        for line in iter_first_model(f):
             # Pego todos os átomos (não apenas CA) da primeira cadeia
-            if line.startswith("ATOM"):
+            if line.startswith("ATOM") and not is_alternate_location(line, chosen_altloc):
                 if first_chain_id is None: first_chain_id = line[21]
                 if line[21] == first_chain_id:
                     res_num = int(line[22:26])
@@ -561,7 +611,7 @@ def write_pdb_with_bfactor(input_pdb_path, output_pdb_path, atom_values, propert
         print(f"  Range de valores: {min_val:.2f} - {max_val:.2f}", file=sys.stderr)
         
     except Exception as e:
-        print(f"Erro ao escrever PDB anotado: {e}", file=sys.stderr)
+        report_error(f"Erro ao escrever PDB anotado: {e}")
 
 def generate_pymol_session(pdb_path, output_pse, property_type="hydrophobicity", min_val=-4.5, max_val=4.5):
     """
@@ -714,7 +764,7 @@ def generate_pymol_session(pdb_path, output_pse, property_type="hydrophobicity",
             print(f"  Nota: PyMOL não está no PATH. Instale-o para gerar o arquivo .pse automaticamente.", file=sys.stderr)
         
     except Exception as e:
-        print(f"Erro ao gerar script PyMOL: {e}", file=sys.stderr)
+        report_error(f"Erro ao gerar script PyMOL: {e}")
 
 def predict_solvent_hydrophoby(args):
     """Prevê a exposição ao solvente usando hidrofobicidade (Kyte-Doolittle) por átomo."""
@@ -947,7 +997,7 @@ def run_apbs_analysis(args): #BETA, TALVEZ SERÁ DESCONTINUADO
     # Verifico se os programas externos necessários estão instalados e no PATH do sistema.
     for exe in ["pdb2pqr", "apbs"]:
         if not shutil.which(exe):
-            print(f"Erro: '{exe}' não encontrado no PATH.", file=sys.stderr); return
+            report_error(f"Erro: '{exe}' não encontrado no PATH."); return
             
     work_dir = tempfile.mkdtemp() # Crio um diretório temporário para os arquivos.
     try:
@@ -976,7 +1026,7 @@ def run_apbs_analysis(args): #BETA, TALVEZ SERÁ DESCONTINUADO
         
     except subprocess.CalledProcessError as e:
         # Se algum dos programas externos falhar, mostro o erro.
-        print(f"Erro ao executar processo externo:\n{e.stderr}", file=sys.stderr)
+        report_error(f"Erro ao executar processo externo:\n{e.stderr}")
     finally:
         # Limpo os arquivos temporários, a menos que o usuário peça para mantê-los.
         if not args.no_cleanup: shutil.rmtree(work_dir)
@@ -1088,6 +1138,10 @@ def main():
     # Se estiver em um terminal interativo, mostro a mensagem de saída.
     if sys.stdout.isatty():
         print_exit_message()
+
+    # Código de saída 1 se algum erro foi reportado, para que scripts e pipelines detectem a falha.
+    if _error_count:
+        sys.exit(1)
 
 # Este é o ponto de entrada padrão para um script Python.
 if __name__ == "__main__":
