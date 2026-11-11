@@ -1,0 +1,6 @@
+# A imagem só precisa do código e das dependências.
+# Tudo o mais (exemplos, imagens, saídas de teste, .git) fica fora do contexto de build.
+*
+!biohub.py
+!biohub_viz.py
+!requirements.txt

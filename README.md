@@ -382,6 +382,41 @@ Se o Python não estiver instalado, baixe em: https://www.python.org/downloads/
 
 ---
 
+## Uso com Docker
+
+Alternativa à instalação com venv: a imagem já traz Python e as dependências de visualização (`matplotlib`, `numpy`, `squarify`). Basta ter o [Docker](https://docs.docker.com/get-docker/) instalado.
+
+### 1. Construa a imagem
+
+```bash
+docker build -t biohub .
+```
+
+### 2. Execute os comandos
+
+Os comandos e opções são os mesmos do uso com Python. O diretório atual é montado em `/data` dentro do container, então os arquivos de entrada e saída ficam na sua pasta:
+
+```bash
+# macOS/Linux
+docker run --rm -v "$PWD:/data" biohub fetchpdb 1TUP --chains A --protein-only -o 1TUP_clean.pdb
+docker run --rm -v "$PWD:/data" biohub sasa 1TUP_clean.pdb -o sasa.csv --plot-profile sasa.png
+
+# Windows (PowerShell)
+docker run --rm -v "${PWD}:/data" biohub fasta 1TUP_clean.pdb -o 1TUP.fasta
+```
+
+Para ver a ajuda: `docker run --rm biohub -h` ou `docker run --rm biohub sasa -h`.
+
+### Observações
+
+- **Linux:** para que os arquivos gerados pertençam ao seu usuário, adicione `--user "$(id -u):$(id -g)"` ao `docker run`.
+- **Banner:** o banner e a mensagem final só aparecem com `-it` (terminal interativo). Sem `-it`, a saída fica limpa e pode ser redirecionada, por exemplo: `docker run --rm -v "$PWD:/data" biohub fasta 1TUP_clean.pdb > 1TUP.fasta`.
+- **`fetchpdb`** precisa de acesso à internet a partir do container (padrão do Docker).
+- **PyMOL não está incluído:** com `--pymol`, o script `.pml` é gerado normalmente e pode ser aberto no PyMOL instalado na sua máquina. O caminho gravado no `.pml` é o de dentro do container (`/data/...`); ajuste a linha `load` se necessário.
+- **`apbs` não está disponível na imagem** (requer PDB2PQR e APBS, que não fazem parte do `requirements.txt`).
+
+---
+
 ## Uso
 
 A ferramenta é executada a partir do terminal, seguindo o padrão:
