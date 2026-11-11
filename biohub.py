@@ -455,6 +455,60 @@ def calculate_physicochemical_properties(args):
         else:
             print("Aviso: Módulo de visualização não disponível. Instale matplotlib.", file=sys.stderr)
 
+def find_residue_contacts(residue_atoms, threshold):
+    """
+    Encontra pares de resíduos cuja distância mínima entre átomos é <= threshold.
+
+    Cada resíduo é envolvido por uma esfera (centro = média das coordenadas,
+    raio = átomo mais distante do centro). Se as esferas de dois resíduos já
+    estão separadas por mais que o threshold, nenhum par de átomos pode estar
+    em contato e a comparação átomo a átomo é pulada. Para os pares restantes,
+    o cálculo é o mesmo da versão original, então o resultado é idêntico.
+
+    Args:
+        residue_atoms: Dicionário número do resíduo -> lista de coordenadas (x, y, z)
+        threshold: Distância máxima em Angstroms
+
+    Returns:
+        Lista de tuplas (residuo_1, residuo_2, distancia_minima_arredondada)
+    """
+    residues = sorted(residue_atoms.keys())
+
+    bounding_spheres = {}
+    for res_num, atom_coords in residue_atoms.items():
+        center = tuple(sum(coord[k] for coord in atom_coords) / len(atom_coords) for k in range(3))
+        radius = max(math.dist(coord, center) for coord in atom_coords)
+        bounding_spheres[res_num] = (center, radius)
+
+    # Margem pequena para que arredondamentos nunca descartem um contato válido.
+    margin = 1e-6
+
+    contacts = []
+    for i, r1 in enumerate(residues):
+        center1, radius1 = bounding_spheres[r1]
+        for r2 in residues[i+1:]:
+            # Ignora vizinhos diretos na sequência
+            if abs(r1 - r2) <= 1:
+                continue
+
+            center2, radius2 = bounding_spheres[r2]
+            if math.dist(center1, center2) - radius1 - radius2 > threshold + margin:
+                continue
+
+            # Distância mínima entre qualquer átomo de r1 e qualquer átomo de r2.
+            # Compara as distâncias ao quadrado e tira a raiz uma única vez.
+            min_dist_sq = min(
+                sum((c1-c2)**2 for c1, c2 in zip(atom1, atom2))
+                for atom1 in residue_atoms[r1]
+                for atom2 in residue_atoms[r2]
+            )
+            min_dist = math.sqrt(min_dist_sq)
+
+            # Se a distância mínima está abaixo do threshold, é um contato
+            if min_dist <= threshold:
+                contacts.append((r1, r2, round(min_dist, 3)))
+    return contacts
+
 def calculate_intramolecular_contacts(args):
     """Calcula contatos entre resíduos com base na distância mínima entre quaisquer átomos."""
     # Dicionário: resíduo -> lista de coordenadas de todos os átomos
@@ -475,28 +529,8 @@ def calculate_intramolecular_contacts(args):
                         residue_atoms[res_num] = []
                     residue_atoms[res_num].append(coords)
 
-    residues = sorted(residue_atoms.keys())
+    contacts = find_residue_contacts(residue_atoms, args.threshold)
 
-    # Calcula a distância mínima entre qualquer par de átomos de dois resíduos
-    contacts = []
-    for i, r1 in enumerate(residues):
-        for r2 in residues[i+1:]:
-            # Ignora vizinhos diretos na sequência
-            if abs(r1 - r2) <= 1:
-                continue
-
-            # Calcula distância mínima entre qualquer átomo de r1 e qualquer átomo de r2
-            min_dist = float('inf')
-            for atom1 in residue_atoms[r1]:
-                for atom2 in residue_atoms[r2]:
-                    dist = math.sqrt(sum((c1-c2)**2 for c1,c2 in zip(atom1, atom2)))
-                    if dist < min_dist:
-                        min_dist = dist
-
-            # Se a distância mínima está abaixo do threshold, é um contato
-            if min_dist <= args.threshold:
-                contacts.append((r1, r2, round(min_dist, 3)))
-    
     if args.output:
         write_csv(args.output, ["Residuo_1", "Residuo_2", "Distancia_A"], contacts)
     else:
@@ -787,37 +821,94 @@ def predict_solvent_hydrophoby(args):
         write_pdb_with_bfactor(args.pdb_file, temp_pdb, atom_values, "Hydrophobicity")
         generate_pymol_session(temp_pdb, args.pymol, property_type="hydrophobicity", min_val=-4.5, max_val=4.5)
 
+def compute_sasa_per_atom(atoms, num_points, probe_radius):
+    """
+    Calcula o SASA de cada átomo pelo método de Shrake-Rupley.
+
+    Um ponto da esfera estendida do átomo i só pode ser ocluído por um átomo j
+    cujo centro esteja a menos de (raio estendido de i + raio estendido de j).
+    Por isso, em vez de testar cada ponto contra todos os átomos (O(N² × P)),
+    os átomos são distribuídos em um grid espacial e cada átomo é comparado
+    apenas com seus vizinhos. O teste de oclusão é o mesmo da versão original,
+    então o resultado é idêntico; apenas o número de comparações diminui.
+
+    Returns:
+        Lista com o SASA (Å²) de cada átomo, na mesma ordem de `atoms`.
+    """
+    if not atoms:
+        return []
+    if num_points <= 0:
+        return [0 for _ in atoms]
+
+    sphere_points = generate_sphere_points(num_points)
+    coords = [(atom["x"], atom["y"], atom["z"]) for atom in atoms]
+    # Raio do átomo + raio da sonda (água).
+    extended_radii = [VDW_RADII.get(atom["element"], VDW_RADII['DEFAULT']) + probe_radius for atom in atoms]
+    extended_radii_sq = [r**2 for r in extended_radii]
+
+    # Margem pequena para que arredondamentos nunca excluam um vizinho válido.
+    margin = 1e-6
+    cell_size = 2 * max(extended_radii) + margin
+    if cell_size <= 0:
+        cell_size = 1.0
+
+    def cell_of(x, y, z):
+        return (math.floor(x / cell_size), math.floor(y / cell_size), math.floor(z / cell_size))
+
+    grid = defaultdict(list)
+    for idx, (x, y, z) in enumerate(coords):
+        grid[cell_of(x, y, z)].append(idx)
+
+    results = []
+    for i, (xi, yi, zi) in enumerate(coords):
+        extended_radius = extended_radii[i]
+
+        # Vizinhos que podem ocluir algum ponto da superfície do átomo i.
+        cx, cy, cz = cell_of(xi, yi, zi)
+        neighbors = []
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for dz in (-1, 0, 1):
+                    for j in grid.get((cx + dx, cy + dy, cz + dz), ()):
+                        if j == i:
+                            continue
+                        xj, yj, zj = coords[j]
+                        limit = extended_radius + extended_radii[j] + margin
+                        if (xi - xj)**2 + (yi - yj)**2 + (zi - zj)**2 < limit * limit:
+                            neighbors.append(j)
+
+        accessible_points = 0
+        last_occluder = None  # Pontos vizinhos costumam ser ocluídos pelo mesmo átomo.
+        for sp in sphere_points:
+            point = (xi + extended_radius * sp[0], yi + extended_radius * sp[1], zi + extended_radius * sp[2])
+            # Se a distância do ponto ao centro do átomo j for menor que o raio estendido de j, o ponto está ocluído.
+            if last_occluder is not None and \
+                    sum((p - c)**2 for p, c in zip(point, coords[last_occluder])) < extended_radii_sq[last_occluder]:
+                continue
+            point_is_accessible = True
+            for j in neighbors:
+                if sum((p - c)**2 for p, c in zip(point, coords[j])) < extended_radii_sq[j]:
+                    point_is_accessible = False
+                    last_occluder = j
+                    break
+            if point_is_accessible:
+                accessible_points += 1
+
+        # O SASA do átomo é a proporção de pontos acessíveis multiplicada pela área da esfera estendida.
+        results.append((accessible_points / num_points) * 4.0 * math.pi * extended_radius**2)
+    return results
+
 def calculate_sasa(args):
     """Calcula a Área de Superfície Acessível ao Solvente (SASA) usando o método de Shrake-Rupley."""
     atoms = parse_pdb_atoms(args.pdb_file)
     if not atoms: return
-    # Gero os pontos na esfera que serão usados para testar a acessibilidade de cada átomo.
-    sphere_points = generate_sphere_points(args.num_points)
     total_sasa = 0.0
     sasa_per_atom = []  # Lista para armazenar SASA de cada átomo
-    
-    # Para cada átomo...
-    for i, atom_i in enumerate(atoms):
-        radius_i = VDW_RADII.get(atom_i["element"], VDW_RADII['DEFAULT'])
-        extended_radius = radius_i + args.probe_radius # Raio do átomo + raio da sonda (água).
-        accessible_points = 0
-        # ... testo cada ponto na sua superfície estendida.
-        for sp in sphere_points:
-            point_is_accessible = True
-            point = (atom_i["x"] + extended_radius * sp[0], atom_i["y"] + extended_radius * sp[1], atom_i["z"] + extended_radius * sp[2])
-            # Verifico se este ponto está dentro da esfera estendida de qualquer outro átomo.
-            for j, atom_j in enumerate(atoms):
-                if i == j: continue
-                radius_j = VDW_RADII.get(atom_j["element"], VDW_RADII['DEFAULT'])
-                # Se a distância do ponto ao centro do átomo j for menor que o raio estendido de j, o ponto está ocluído.
-                if sum((p-c)**2 for p,c in zip(point, (atom_j["x"], atom_j["y"], atom_j["z"]))) < (radius_j + args.probe_radius)**2:
-                    point_is_accessible = False; break
-            if point_is_accessible: accessible_points += 1
-        
-        # O SASA do átomo é a proporção de pontos acessíveis multiplicada pela área da esfera estendida.
-        atom_sasa = (accessible_points / args.num_points) * 4.0 * math.pi * extended_radius**2 if args.num_points > 0 else 0
+    atom_sasa_values = compute_sasa_per_atom(atoms, args.num_points, args.probe_radius)
+
+    for atom_i, atom_sasa in zip(atoms, atom_sasa_values):
         total_sasa += atom_sasa
-        
+
         # Armazena dados do átomo com SASA
         sasa_per_atom.append({
             "chain_id": atom_i["chain_id"],
@@ -1050,7 +1141,8 @@ def main():
     parser_sasa.add_argument("--probe-radius", metavar="FLOAT", type=float, default=1.4, help="Raio da sonda do solvente em Angstroms (padrão: 1.4 para água).")
     # MUDANÇA v0.1.3: Reduzido de 960 para 200 pontos por questões de performance.
     # Com 960 pontos, o cálculo fica muito pesado (O(N² × P)) e pode levar >20 minutos ou travar.
-    # 200 pontos oferece um bom balanceamento entre precisão e tempo de execução (~2-8 minutos).
+    # 200 pontos oferece um bom balanceamento entre precisão e tempo de execução.
+    # Com a busca de vizinhos em compute_sasa_per_atom, valores maiores também ficam rápidos (segundos).
     # Usuários que precisarem de maior precisão podem aumentar manualmente com --num-points.
     parser_sasa.add_argument("--num-points", metavar="INT", type=int, default=200, help="Número de pontos na superfície de cada átomo para o cálculo. Padrão: 200 (reduzido de 960 por performance).")
     parser_sasa.add_argument("-o", "--output", metavar="ARQUIVO_CSV", help="Salva os resultados por átomo em um arquivo CSV.")

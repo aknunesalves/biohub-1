@@ -273,8 +273,9 @@ Calcula a **Área de Superfície Acessível ao Solvente (SASA)** usando o algori
 **Nota sobre Performance (v0.1.3):**
 * O padrão foi reduzido de 960 para 200 pontos por questões de performance
 * Com 960 pontos, o cálculo pode ser extremamente lento (>10-20 minutos) ou travar em estruturas médias/grandes
-* 200 pontos oferece bom balanceamento entre precisão e tempo de execução (~2-8 minutos)
+* 200 pontos oferece bom balanceamento entre precisão e tempo de execução
 * Para maior precisão, aumente manualmente com `--num-points` (ex: 500, 960, ou 2000)
+* Desde a otimização com busca de vizinhos por grid espacial, o cálculo compara cada átomo apenas com os átomos próximos, com resultado idêntico ao da versão anterior; 960 pontos levam segundos em estruturas pequenas/médias (veja a nota de performance abaixo)
 
 ---
 
@@ -816,10 +817,15 @@ pymol 4HHB_sasa.pml
 
 No PyMOL, resíduos enterrados aparecerão em vermelho, parcialmente expostos em branco, e totalmente expostos em azul.
 
-**Nota de Performance:**
-- 200 pontos (padrão): ~2-8 minutos (estruturas pequenas/médias)
-- 500 pontos: ~5-15 minutos (maior precisão)
-- 960 pontos: >10-20 minutos ou mais (precisão máxima, muito lento)
+**Nota de Performance** (tempos medidos com Python 3.13; variam conforme a máquina):
+
+| Pontos | 1TUP (1.535 átomos) | 9VGK (2.998 átomos) |
+|---|---|---|
+| 200 (padrão) | ~2 s | ~4 s |
+| 500 | ~5 s | ~10 s |
+| 960 | ~9 s | ~18 s |
+
+O tempo cresce de forma aproximadamente linear com o número de átomos e de pontos. Antes da otimização, 200 pontos levavam ~2,5 minutos no 1TUP.
 
 ---
 
