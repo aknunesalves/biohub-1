@@ -236,7 +236,7 @@ Calcula um conjunto expandido de propriedades físico-químicas essenciais para 
 * **GRAVY (Grand Average of Hydropathicity)**: Um índice do caráter hidrofóbico ou hidrofílico geral de uma proteína. Valores positivos indicam hidrofobicidade (ex.: proteínas de membrana), enquanto valores negativos indicam hidrofilicidade (ex.: proteínas citosólicas).
 * **Índice Alifático**: Medida do volume ocupado por cadeias laterais alifáticas (Ala, Val, Ile, Leu), correlacionado com a estabilidade térmica da proteína.
 * **Índice de Instabilidade**: Prevê se a proteína é estável ou instável em ambientes fisiológicos (valores > 40 indicam instabilidade).
-* **Meia-vida**: Estimativa da meia-vida da proteína em *E. coli* (*in vitro*) com base no resíduo N-terminal.
+* **Meia-vida**: Estimativa da meia-vida da proteína em *E. coli* (*in vivo*) com base no resíduo N-terminal, conforme a tabela do ProtParam.
 * **Composição de Aminoácidos**: A contagem e a frequência de cada resíduo, incluindo contagens de resíduos ácidos, básicos, polares e apolares.
 
 ### 5. `contacts`
@@ -580,7 +580,7 @@ python3 biohub.py physchem -h
 * GRAVY (hidropaticidade)
 * Índice alifático
 * Índice de instabilidade
-* Meia-vida estimada (*E. coli*, *in vitro*)
+* Meia-vida estimada (*E. coli*, *in vivo*)
 * Total de resíduos ácidos (Asp+Glu)
 * Total de resíduos básicos (Arg+Lys+His)
 * Total de resíduos polares
@@ -1048,10 +1048,10 @@ O BioHub foi validado contra **ProtParam (ExPASy)**, a referência internacional
 | **Peso Molecular** | 22.003,86 Da | 22.003,93 Da | == | Diferença <0.001% |
 | **GRAVY** | -0.503 | -0.503 | == | Idêntico |
 | **Índice Alifático** | 65.56 | 65.56 | == | Idêntico |
-| **Ponto Isoelétrico** | 8.03 | 8.34 | ~= | Diferença 3.7% |
+| **Ponto Isoelétrico** | 8.34 | 8.34 | == | Idêntico (pKa de Bjellqvist, como no ProtParam) |
 | **Resíduos Ácidos** | 19 | 19 | == | Idêntico |
 | **Composição de aa** | 20 tipos | 20 tipos | == | Idêntico |
-| **Índice Instabilidade** | 69.59 | 73.97 | ~= | Valores próximos, classificação concordante (ambos classificam como instável)|
+| **Índice Instabilidade** | 73.97 | 73.97 | == | Idêntico (matriz DIWV de Guruprasad et al., 1990) |
 | **Meia-Vida** | >10 h (E. coli) | >10 h (E. coli) | == | Idêntico para E. coli |
 | **Resíduos Básicos** | 29 (com His) | 22 (sem His) | -- | Metodologia diferente |
 

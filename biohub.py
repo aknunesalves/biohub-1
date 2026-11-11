@@ -48,9 +48,23 @@ KYTE_DOOLITTLE = {
     'P': -1.6, 'S': -0.8, 'T': -0.7, 'W': -0.9, 'Y': -1.3, 'V': 4.2
 }
 # Valores de pKa para os grupos ionizáveis, usados para calcular o ponto isoelétrico (pI).
+# Conjunto de Bjellqvist et al. (1993, 1994), o mesmo usado pelo ExPASy ProtParam/Compute pI e
+# pelo Biopython. Os pKa dos terminais dependem do resíduo terminal (tabelas abaixo).
 PKA_VALUES = {
-    'C-term': 3.65, 'N-term': 8.0, 'D': 3.9, 'E': 4.07, 'H': 6.5, 'C': 8.5,
+    'C-term': 3.55, 'N-term': 7.5, 'D': 4.05, 'E': 4.45, 'H': 5.98, 'C': 9.0,
     'Y': 10.0, 'K': 10.0, 'R': 12.0
+}
+# pKa do grupo amino N-terminal quando o primeiro resíduo é um destes (senão usa PKA_VALUES['N-term']).
+PKA_N_TERMINAL = {'A': 7.59, 'M': 7.0, 'S': 6.93, 'P': 8.36, 'T': 6.82, 'V': 7.44, 'E': 7.7}
+# pKa do grupo carboxila C-terminal quando o último resíduo é um destes (senão usa PKA_VALUES['C-term']).
+PKA_C_TERMINAL = {'D': 4.55, 'E': 4.75}
+# Meia-vida estimada em E. coli (in vivo) pela regra do N-terminal (N-end rule),
+# conforme a tabela da documentação do ExPASy ProtParam (Bachmair et al., 1986; Gonda et al., 1989).
+HALF_LIFE_E_COLI = {
+    'A': '>10 horas', 'R': '2 min', 'N': '>10 horas', 'D': '>10 horas', 'C': '>10 horas',
+    'Q': '>10 horas', 'E': '>10 horas', 'G': '>10 horas', 'H': '>10 horas', 'I': '>10 horas',
+    'L': '2 min', 'K': '2 min', 'M': '>10 horas', 'F': '2 min', 'P': 'Desconhecido',
+    'S': '>10 horas', 'T': '>10 horas', 'W': '2 min', 'Y': '2 min', 'V': '>10 horas'
 }
 # Raios de Van der Waals (em Angstroms) para diferentes elementos, usados no cálculo do SASA.
 VDW_RADII = {
@@ -58,24 +72,25 @@ VDW_RADII = {
     'CL': 1.75, 'BR': 1.85, 'I': 1.98, 'DEFAULT': 1.70 # Um valor padrão para átomos não listados.
 }
 # Matriz de pesos (DIWV) usada para calcular o índice de instabilidade de uma proteína.
+# Valores de Guruprasad et al. (1990), conforme usados pelo ExPASy ProtParam e pelo Biopython.
 DIWV = {
     'A': {'A': 1.0, 'C': 44.94, 'E': 1.0, 'D': -7.49, 'G': 1.0, 'F': 1.0, 'I': 1.0, 'H': -7.49, 'K': 1.0, 'M': 1.0, 'L': 1.0, 'N': 1.0, 'Q': 1.0, 'P': 20.26, 'S': 1.0, 'R': 1.0, 'T': 1.0, 'W': 1.0, 'V': 1.0, 'Y': 1.0},
-    'C': {'A': 1.0, 'C': 1.0, 'E': 1.0, 'D': 20.26, 'G': 1.0, 'F': 1.0, 'I': 1.0, 'H': 33.6, 'K': 1.0, 'M': 33.6, 'L': 20.26, 'N': 1.0, 'Q': -6.54, 'P': 33.6, 'S': 1.0, 'R': 20.26, 'T': 1.0, 'W': 24.68, 'V': -6.54, 'Y': 1.0},
+    'C': {'A': 1.0, 'C': 1.0, 'E': 1.0, 'D': 20.26, 'G': 1.0, 'F': 1.0, 'I': 1.0, 'H': 33.6, 'K': 1.0, 'M': 33.6, 'L': 20.26, 'N': 1.0, 'Q': -6.54, 'P': 20.26, 'S': 1.0, 'R': 1.0, 'T': 33.6, 'W': 24.68, 'V': -6.54, 'Y': 1.0},
     'E': {'A': 1.0, 'C': 44.94, 'E': 33.6, 'D': 20.26, 'G': 1.0, 'F': 1.0, 'I': 20.26, 'H': -6.54, 'K': 1.0, 'M': 1.0, 'L': 1.0, 'N': 1.0, 'Q': 20.26, 'P': 20.26, 'S': 20.26, 'R': 1.0, 'T': 1.0, 'W': -14.03, 'V': 1.0, 'Y': 1.0},
-    'D': {'A': 1.0, 'C': 1.0, 'E': 1.0, 'D': 1.0, 'G': 1.0, 'F': 1.0, 'I': 1.0, 'H': 1.0, 'K': -7.49, 'M': 1.0, 'L': 1.0, 'N': 1.0, 'Q': -6.54, 'P': 1.0, 'S': 20.26, 'R': -6.54, 'T': -14.03, 'W': 1.0, 'V': 1.0, 'Y': 1.0},
-    'G': {'A': -7.49, 'C': 1.0, 'E': 1.0, 'D': 1.0, 'G': 13.34, 'F': -7.49, 'I': -7.49, 'H': 1.0, 'K': -7.49, 'M': 1.0, 'L': 1.0, 'N': -7.49, 'Q': 1.0, 'P': 1.0, 'S': 1.0, 'R': 1.0, 'T': 1.0, 'W': 13.34, 'V': -6.54, 'Y': 1.0},
-    'F': {'A': 1.0, 'C': 1.0, 'E': 1.0, 'D': 13.34, 'G': 1.0, 'F': 1.0, 'I': 1.0, 'H': 1.0, 'K': -14.03, 'M': 1.0, 'L': 1.0, 'N': 1.0, 'Q': 1.0, 'P': 20.26, 'S': 1.0, 'R': 1.0, 'T': 1.0, 'W': 1.0, 'V': 1.0, 'Y': 33.6},
-    'I': {'A': 1.0, 'C': 1.0, 'E': 44.94, 'D': 1.0, 'G': 1.0, 'F': 1.0, 'I': 1.0, 'H': 1.0, 'K': -7.49, 'M': 1.0, 'L': 20.26, 'N': 1.0, 'Q': 1.0, 'P': -1.88, 'S': 1.0, 'R': 1.0, 'T': 1.0, 'W': 1.0, 'V': -7.49, 'Y': 13.34},
-    'H': {'A': -9.37, 'C': 1.0, 'E': 24.68, 'D': 1.0, 'G': 1.0, 'F': -9.37, 'I': 44.94, 'H': 1.0, 'K': -6.54, 'M': 1.0, 'L': 1.0, 'N': 24.68, 'Q': 1.0, 'P': 1.0, 'S': 1.0, 'R': 1.0, 'T': -1.88, 'W': -1.88, 'V': 1.0, 'Y': 44.94},
-    'K': {'A': 1.0, 'C': 1.0, 'E': 1.0, 'D': 1.0, 'G': -7.49, 'F': 1.0, 'I': -7.49, 'H': 1.0, 'K': 1.0, 'M': 33.6, 'L': -7.49, 'N': 1.0, 'Q': 24.68, 'P': -6.54, 'S': 1.0, 'R': 33.6, 'T': 1.0, 'W': 1.0, 'V': -7.49, 'Y': 1.0},
+    'D': {'A': 1.0, 'C': 1.0, 'E': 1.0, 'D': 1.0, 'G': 1.0, 'F': -6.54, 'I': 1.0, 'H': 1.0, 'K': -7.49, 'M': 1.0, 'L': 1.0, 'N': 1.0, 'Q': 1.0, 'P': 1.0, 'S': 20.26, 'R': -6.54, 'T': -14.03, 'W': 1.0, 'V': 1.0, 'Y': 1.0},
+    'G': {'A': -7.49, 'C': 1.0, 'E': -6.54, 'D': 1.0, 'G': 13.34, 'F': 1.0, 'I': -7.49, 'H': 1.0, 'K': -7.49, 'M': 1.0, 'L': 1.0, 'N': -7.49, 'Q': 1.0, 'P': 1.0, 'S': 1.0, 'R': 1.0, 'T': -7.49, 'W': 13.34, 'V': 1.0, 'Y': -7.49},
+    'F': {'A': 1.0, 'C': 1.0, 'E': 1.0, 'D': 13.34, 'G': 1.0, 'F': 1.0, 'I': 1.0, 'H': 1.0, 'K': -14.03, 'M': 1.0, 'L': 1.0, 'N': 1.0, 'Q': 1.0, 'P': 20.26, 'S': 1.0, 'R': 1.0, 'T': 1.0, 'W': 1.0, 'V': 1.0, 'Y': 33.601},
+    'I': {'A': 1.0, 'C': 1.0, 'E': 44.94, 'D': 1.0, 'G': 1.0, 'F': 1.0, 'I': 1.0, 'H': 13.34, 'K': -7.49, 'M': 1.0, 'L': 20.26, 'N': 1.0, 'Q': 1.0, 'P': -1.88, 'S': 1.0, 'R': 1.0, 'T': 1.0, 'W': 1.0, 'V': -7.49, 'Y': 1.0},
+    'H': {'A': 1.0, 'C': 1.0, 'E': 1.0, 'D': 1.0, 'G': -9.37, 'F': -9.37, 'I': 44.94, 'H': 1.0, 'K': 24.68, 'M': 1.0, 'L': 1.0, 'N': 24.68, 'Q': 1.0, 'P': -1.88, 'S': 1.0, 'R': 1.0, 'T': -6.54, 'W': -1.88, 'V': 1.0, 'Y': 44.94},
+    'K': {'A': 1.0, 'C': 1.0, 'E': 1.0, 'D': 1.0, 'G': -7.49, 'F': 1.0, 'I': -7.49, 'H': 1.0, 'K': 1.0, 'M': 33.6, 'L': -7.49, 'N': 1.0, 'Q': 24.64, 'P': -6.54, 'S': 1.0, 'R': 33.6, 'T': 1.0, 'W': 1.0, 'V': -7.49, 'Y': 1.0},
     'M': {'A': 13.34, 'C': 1.0, 'E': 1.0, 'D': 1.0, 'G': 1.0, 'F': 1.0, 'I': 1.0, 'H': 58.28, 'K': 1.0, 'M': -1.88, 'L': 1.0, 'N': 1.0, 'Q': -6.54, 'P': 44.94, 'S': 44.94, 'R': -6.54, 'T': -1.88, 'W': 1.0, 'V': 1.0, 'Y': 24.68},
-    'L': {'A': 1.0, 'C': 1.0, 'E': 1.0, 'D': 1.0, 'G': 1.0, 'F': 33.6, 'I': 1.0, 'H': 1.0, 'K': 1.0, 'M': 1.0, 'L': 1.0, 'N': 1.0, 'Q': 1.0, 'P': 20.26, 'S': 1.0, 'R': 20.26, 'T': 1.0, 'W': 24.68, 'V': 1.0, 'Y': 1.0},
-    'N': {'A': -14.03, 'C': -1.88, 'E': 24.68, 'D': 1.0, 'G': 1.0, 'F': -14.03, 'I': 44.94, 'H': 1.0, 'K': -7.49, 'M': 1.0, 'L': 1.0, 'N': 1.0, 'Q': -6.54, 'P': 1.0, 'S': 1.0, 'R': 1.0, 'T': -1.88, 'W': -9.37, 'V': 1.0, 'Y': 1.0},
+    'L': {'A': 1.0, 'C': 1.0, 'E': 1.0, 'D': 1.0, 'G': 1.0, 'F': 1.0, 'I': 1.0, 'H': 1.0, 'K': -7.49, 'M': 1.0, 'L': 1.0, 'N': 1.0, 'Q': 33.6, 'P': 20.26, 'S': 1.0, 'R': 20.26, 'T': 1.0, 'W': 24.68, 'V': 1.0, 'Y': 1.0},
+    'N': {'A': 1.0, 'C': -1.88, 'E': 1.0, 'D': 1.0, 'G': -14.03, 'F': -14.03, 'I': 44.94, 'H': 1.0, 'K': 24.68, 'M': 1.0, 'L': 1.0, 'N': 1.0, 'Q': -6.54, 'P': -1.88, 'S': 1.0, 'R': 1.0, 'T': -7.49, 'W': -9.37, 'V': 1.0, 'Y': 1.0},
     'Q': {'A': 1.0, 'C': -6.54, 'E': 20.26, 'D': 20.26, 'G': 1.0, 'F': -6.54, 'I': 1.0, 'H': 1.0, 'K': 1.0, 'M': 1.0, 'L': 1.0, 'N': 1.0, 'Q': 20.26, 'P': 20.26, 'S': 44.94, 'R': 1.0, 'T': 1.0, 'W': 1.0, 'V': -6.54, 'Y': -6.54},
-    'P': {'A': 20.26, 'C': -6.54, 'E': 18.38, 'D': 20.26, 'G': 1.0, 'F': 20.26, 'I': 1.0, 'H': 1.0, 'K': 1.0, 'M': -6.54, 'L': 1.0, 'N': 1.0, 'Q': 20.26, 'P': 20.26, 'S': 20.26, 'R': -6.54, 'T': 1.0, 'W': -1.88, 'V': 20.26, 'Y': 1.0},
-    'S': {'A': 1.0, 'C': 33.6, 'E': 20.26, 'D': 1.0, 'G': 1.0, 'F': 1.0, 'I': 1.0, 'H': 1.0, 'K': 1.0, 'M': 1.0, 'L': 1.0, 'N': 1.0, 'Q': 20.26, 'P': 44.94, 'S': 1.0, 'R': 20.26, 'T': 1.0, 'W': 1.0, 'V': 1.0, 'Y': 20.26},
+    'P': {'A': 20.26, 'C': -6.54, 'E': 18.38, 'D': -6.54, 'G': 1.0, 'F': 20.26, 'I': 1.0, 'H': 1.0, 'K': 1.0, 'M': -6.54, 'L': 1.0, 'N': 1.0, 'Q': 20.26, 'P': 20.26, 'S': 20.26, 'R': -6.54, 'T': 1.0, 'W': -1.88, 'V': 20.26, 'Y': 1.0},
+    'S': {'A': 1.0, 'C': 33.6, 'E': 20.26, 'D': 1.0, 'G': 1.0, 'F': 1.0, 'I': 1.0, 'H': 1.0, 'K': 1.0, 'M': 1.0, 'L': 1.0, 'N': 1.0, 'Q': 20.26, 'P': 44.94, 'S': 20.26, 'R': 20.26, 'T': 1.0, 'W': 1.0, 'V': 1.0, 'Y': 1.0},
     'R': {'A': 1.0, 'C': 1.0, 'E': 1.0, 'D': 1.0, 'G': -7.49, 'F': 1.0, 'I': 1.0, 'H': 20.26, 'K': 1.0, 'M': 1.0, 'L': 1.0, 'N': 13.34, 'Q': 20.26, 'P': 20.26, 'S': 44.94, 'R': 58.28, 'T': 1.0, 'W': 58.28, 'V': 1.0, 'Y': -6.54},
-    'T': {'A': 1.0, 'C': 1.0, 'E': 20.26, 'D': 1.0, 'G': 1.0, 'F': 13.34, 'I': 1.0, 'H': 1.0, 'K': 1.0, 'M': 1.0, 'L': 1.0, 'N': -14.03, 'Q': -6.54, 'P': 1.0, 'S': 1.0, 'R': 1.0, 'T': 1.0, 'W': -14.03, 'V': 1.0, 'Y': 1.0},
+    'T': {'A': 1.0, 'C': 1.0, 'E': 20.26, 'D': 1.0, 'G': -7.49, 'F': 13.34, 'I': 1.0, 'H': 1.0, 'K': 1.0, 'M': 1.0, 'L': 1.0, 'N': -14.03, 'Q': -6.54, 'P': 1.0, 'S': 1.0, 'R': 1.0, 'T': 1.0, 'W': -14.03, 'V': 1.0, 'Y': 1.0},
     'W': {'A': -14.03, 'C': 1.0, 'E': 1.0, 'D': 1.0, 'G': -9.37, 'F': 1.0, 'I': 1.0, 'H': 24.68, 'K': 1.0, 'M': 24.68, 'L': 13.34, 'N': 13.34, 'Q': 1.0, 'P': 1.0, 'S': 1.0, 'R': 1.0, 'T': -14.03, 'W': 1.0, 'V': -7.49, 'Y': 1.0},
     'V': {'A': 1.0, 'C': 1.0, 'E': 1.0, 'D': -14.03, 'G': -7.49, 'F': 1.0, 'I': 1.0, 'H': 1.0, 'K': -1.88, 'M': 1.0, 'L': 1.0, 'N': 1.0, 'Q': 1.0, 'P': 20.26, 'S': 1.0, 'R': 1.0, 'T': -7.49, 'W': 1.0, 'V': 1.0, 'Y': -6.54},
     'Y': {'A': 24.68, 'C': 1.0, 'E': -6.54, 'D': 24.68, 'G': -7.49, 'F': 1.0, 'I': 1.0, 'H': 13.34, 'K': 1.0, 'M': 44.94, 'L': 1.0, 'N': 1.0, 'Q': 1.0, 'P': 13.34, 'S': 1.0, 'R': -15.91, 'T': -7.49, 'W': -9.37, 'V': 1.0, 'Y': 13.34}
@@ -368,6 +383,35 @@ def handle_csv_to_fasta(args):
     except Exception as e:
         print(f"Ocorreu um erro: {e}", file=sys.stderr)
 
+def net_charge_at_ph(ph, sequence, aa_composition):
+    """Carga líquida da proteína em um pH (Henderson-Hasselbalch), com pKa terminais dependentes do resíduo."""
+    pk_n_term = PKA_N_TERMINAL.get(sequence[0], PKA_VALUES['N-term'])
+    pk_c_term = PKA_C_TERMINAL.get(sequence[-1], PKA_VALUES['C-term'])
+    # Carga dos terminais N e C.
+    net_charge = 1.0 / (10**(ph - pk_n_term) + 1.0) - 1.0 / (10**(pk_c_term - ph) + 1.0)
+    # Carga das cadeias laterais ionizáveis.
+    for aa in ('R', 'H', 'K'):
+        net_charge += aa_composition.get(aa, 0) / (10**(ph - PKA_VALUES[aa]) + 1.0)
+    for aa in ('D', 'E', 'C', 'Y'):
+        net_charge -= aa_composition.get(aa, 0) / (10**(PKA_VALUES[aa] - ph) + 1.0)
+    return net_charge
+
+def calculate_isoelectric_point(sequence, aa_composition, tolerance=1e-4):
+    """
+    Ponto isoelétrico por bisseção entre pH 0 e 14.
+
+    A carga líquida diminui monotonicamente com o pH, então a bisseção converge
+    para o único pH de carga zero, com precisão `tolerance`.
+    """
+    low, high = 0.0, 14.0
+    while high - low > tolerance:
+        mid = (low + high) / 2
+        if net_charge_at_ph(mid, sequence, aa_composition) > 0:
+            low = mid
+        else:
+            high = mid
+    return (low + high) / 2
+
 def calculate_physicochemical_properties(args):
     """Calcula várias propriedades físico-químicas de uma sequência de proteína."""
     sequence = args.sequence.upper()
@@ -384,21 +428,9 @@ def calculate_physicochemical_properties(args):
     # GRAVY: média dos valores de hidropaticidade de Kyte-Doolittle.
     gravy = sum(KYTE_DOOLITTLE.get(aa, 0) for aa in sequence) / length if length > 0 else 0
     
-    # Ponto Isoelétrico (pI): procuro o pH onde a carga líquida da proteína é mais próxima de zero.
-    pi = 0.0
-    min_charge_diff = float('inf')
-    for ph_int in range(1401): # Itera de pH 0 a 14.00 com passo de 0.01.
-        ph = ph_int * 0.01
-        # Carga dos terminais N e C.
-        net_charge = (10**PKA_VALUES['N-term']) / (10**PKA_VALUES['N-term'] + 10**ph) - (10**ph) / (10**PKA_VALUES['C-term'] + 10**ph)
-        # Carga das cadeias laterais ionizáveis.
-        for aa, count in aa_composition.items():
-            if aa in ['R', 'H', 'K']: net_charge += count * (10**PKA_VALUES[aa]) / (10**PKA_VALUES[aa] + 10**ph)
-            elif aa in ['D', 'E', 'C', 'Y']: net_charge -= count * (10**ph) / (10**PKA_VALUES[aa] + 10**ph)
-        
-        if abs(net_charge) < min_charge_diff:
-            min_charge_diff, pi = abs(net_charge), ph
-            
+    # Ponto Isoelétrico (pI): pH onde a carga líquida da proteína é zero.
+    pi = calculate_isoelectric_point(sequence, aa_composition)
+
     # Índice Alifático: volume relativo ocupado por cadeias laterais alifáticas.
     a, b = 2.9, 3.9
     aliphatic_index = (aa_composition.get('A', 0) + a * aa_composition.get('V', 0) + b * (aa_composition.get('I', 0) + aa_composition.get('L', 0))) / length * 100 if length > 0 else 0
@@ -408,8 +440,7 @@ def calculate_physicochemical_properties(args):
     stability = "Estável" if instability_index < 40 else "Instável"
     
     # Meia-vida: regra do N-terminal. Uma estimativa grosseira.
-    n_term = sequence[0]
-    half_life_mammal = ">10 horas" if n_term in ['A','C','G','M','P','S','T','V'] else "2-30 min" if n_term in ['I','L','F','W','Y','D','E','N','Q'] else "Desconhecido"
+    half_life_e_coli = HALF_LIFE_E_COLI.get(sequence[0], "Desconhecido")
     
     # Contagem de tipos de resíduos.
     def count_group(group_aas): return sum(aa_composition.get(aa, 0) for aa in group_aas)
@@ -421,7 +452,7 @@ def calculate_physicochemical_properties(args):
         ("Comprimento", length), ("Peso Molecular (Da)", f"{mw:.2f}"),
         ("Ponto Isoelétrico (pI)", f"{pi:.2f}"), ("GRAVY (Hidropaticidade)", f"{gravy:.3f}"),
         ("Índice Alifático", f"{aliphatic_index:.2f}"), ("Índice de Instabilidade", f"{instability_index:.2f} ({stability})"),
-        ("Meia-Vida (E. coli, in vitro)", half_life_mammal), ("Total de Resíduos Ácidos (Asp+Glu)", acidic),
+        ("Meia-Vida (E. coli, in vivo)", half_life_e_coli), ("Total de Resíduos Ácidos (Asp+Glu)", acidic),
         ("Total de Resíduos Básicos (Arg+Lys+His)", basic), ("Total de Resíduos Polares", polar),
         ("Total de Resíduos Apolares", non_polar)
     ]
